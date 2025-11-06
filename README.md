@@ -14,4 +14,26 @@ CloudWatch monitoring solution for a 3-tier web application
 - Public subnets associated with public route table
 - Private subnets associated with respective private route table
 ![Resource Map](screenshots/vpc-resource-map.png)
-**Design Choice:** Used public subnets for all resources initially to avoid NAT Gateway costs. In production, EC2 and RDS would go in the private subnets with NAT for internet access. The current setup is secure enough for a monitoring project since RDS won't be public and EC2 security groups will be restrictive.
+- **Design Choice:** Used public subnets for all resources initially to avoid NAT Gateway costs. In production, EC2 and RDS would go in the private subnets with NAT for internet access. The current setup is secure enough for a monitoring project since RDS won't be public and EC2 security groups will be restrictive.
+
+## RDS Configuration
+- MySQL 8.0.42 
+- db.t3.micro
+- 20GB gp2
+- Single AZ deployment
+
+## EC2 Launch Template Configuration
+- Amazon Linux 2023 640bit
+- t3.micro
+- Security group: allowing SSH from my IP, and HTTP from anywhere (will change to ALB security group later)
+    - Inbound: HTTP(Anywhere), SSH(My IP)
+    - Outbound: All traffic
+- EBS 8GB gp3 storage (encrypted)
+- IAM role with attached permissions for CloudWatch agent and Systems Manager:
+    - CloudWatchAgentServerPolicy
+    - AmazonSSMManagedInstanceCore
+- Tags:
+    - Name: webapp-instance
+    - Environment: dev
+    - Project: cloudwatch-monitoring
+- 
