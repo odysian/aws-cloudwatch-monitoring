@@ -21,6 +21,7 @@ CloudWatch monitoring solution for a 3-tier web application
 - db.t3.micro
 - 20GB gp2
 - Single AZ deployment
+- Security Group only allows access from EC2 security group
 
 ## EC2 Launch Template Configuration
 - Amazon Linux 2023 640bit
@@ -28,12 +29,61 @@ CloudWatch monitoring solution for a 3-tier web application
 - Security group: allowing SSH from my IP, and HTTP from anywhere (will change to ALB security group later)
     - Inbound: HTTP(Anywhere), SSH(My IP)
     - Outbound: All traffic
+- Network interface that auto-assigns IPv4 address
 - EBS 8GB gp3 storage (encrypted)
 - IAM role with attached permissions for CloudWatch agent and Systems Manager:
     - CloudWatchAgentServerPolicy
     - AmazonSSMManagedInstanceCore
+- [User Data:](scripts/user-data-full-config.sh)
+    - Installs PHP, Apache and CloudWatch Agent
+    - Connects to RDS
+    - Configures CloudWatch agent
 - Tags:
     - Name: webapp-instance
     - Environment: dev
     - Project: cloudwatch-monitoring
-- 
+
+## CloudWatch Monitoring Setup
+
+### Dashboard Configuration
+
+**EC2 Metrics:**
+- CPU Usage (Idle) - tracking CPU availability
+- Memory Usage - percentage of RAM utilizied
+- Root Disk Usage - filesystem capacity monitoring
+
+**RDS Metrics:**
+- CPU Utilization - database processing load
+- Free storage space - available disk capacity
+- Database connections - active connection count
+
+![CloudWatch Dashboard](screenshots/cloudwatch-dashboard.png)
+
+### Alarm Configuration and Testing
+
+**Test Alarm Created:**
+- Metric: Memory Usage (mem_used_percent)
+- Threshold >= 50% for 1 datapoint within 1 minute
+- Action: SNS topic (webapp-alerts) -> Email notification
+- State: Configured and verified
+
+**Testing Process:**
+```bash
+# Generated memory usage with stress-ng
+stress-ng --vm 1 --vm-bytes 400M --timeout 120s
+```
+
+**Results:**
+- Memory usage spiked to 68%
+- Alarm triggered successfully 
+- SNS Email notification received within 1-2 minutes
+- Alarm state transitioned: OK -> In alarm -> OK
+
+![Alarm Triggered](screenshots/alarm-triggered1.png)
+![Alarm History](screenshots/alarm-history.png)
+![Email Alert](screenshots/email-alert.png)
+
+**Lessons Learned:**
+- Cloudwatch agent metrics have ~1 minute collection interval
+- Make sure dashboard widget collection period is set to 1min
+- Email delivery is reliable and was able to have the notification pushed from gmail to my phone
