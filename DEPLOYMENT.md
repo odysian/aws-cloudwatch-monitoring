@@ -1,4 +1,5 @@
 # Deployment
+
 ## Overview
 This document outlines the deploment validation steps for the aws-cloudwatch-monitoring project. Verifying EC2 setup, Apache/PHP config, RDS connectivity and CloudWatch Agent functionality.
 
@@ -8,11 +9,13 @@ This document outlines the deploment validation steps for the aws-cloudwatch-mon
 - Instance profile attached to EC2 with `CloudWatchAgentServerPolicy` and `AmazonSSMManagedInstanceCore`
 
 **Security Groups:**
-- EC2 SG: 
+- EC2-Test SG: 
     - Inbound: HTTP (80) from 0.0.0.0/0, SSH (22) from your IP.
     - Outbound: All traffic.
 - RDS SG:
     - Inbound: MySQL/Aurora (3306) only from EC2 SG.
+- ALB SG:
+    - Inbound: HTTP (80) from 0.0.0.0/0
 
 **RDS Database:**
 - MySQL instance created and in **available** state
@@ -24,9 +27,25 @@ This document outlines the deploment validation steps for the aws-cloudwatch-mon
     - PHP
     - CloudWatch Agent
 
+**Target Group**
+- Protocol: HTTP(80)
+- Health Checks:
+    - Protocol: HTTP
+    - Path: /index.php
+    - Healthy Threshold: 2 consecutive checks
+    - Unhealthy Threshold: 2 consecutive checks
+    - Timeout: 5 seconds
+    - Interval 30 seconds
+    - Success Codes: 200
+
+**Application Load Balancer**
+- 
+- webapp-alb-1270271488.us-east-1.elb.amazonaws.com
+
+
 ## Testing and Verification
 
-### EC2 Instance
+### EC2 Test Instance
 ```sh
 # Confirm web server is responding
 curl http://<public ip>
@@ -86,3 +105,36 @@ mysql -h database-cloudwatch-monitoring.c0fekuwkkx5w.us-east-1.rds.amazonaws.com
 - Verify RDS SG allows inbound 3306 from EC2 SG
 - Ensure RDS instance is in "available" state
 - Double check RDS endpoint, username, and password
+
+## Troubleshooting
+
+### Issue: Instances Unhealthy in Target Group
+
+**Symptoms:**
+- Target group shows unhealthy status
+- Health check returns "Connection refused" or timeout
+- `curl localhost/index.php` returns "file not found"
+
+**Root Cause:**
+User data script waiting for RDS connectivity but timing out before creating application files.
+
+**Solution:**
+```bash
+# Check user data execution
+sudo cat /var/log/cloud-init-output.log | tail -100
+
+# Verify Apache is running
+sudo systemctl status httpd
+
+#Test health check endpoint
+curl localhost/index.php
+
+# If file missing, user data failed - check logs for where it stopped
+# Install mariadb105 in user data to enable RDS connectivity checks
+```
+
+**Prevention:**
+- Ensure RDS security group allows EC2 security group before launching ASG
+- Include mariadb105 package in user data for RDS verification
+- Set health check grace period to 300s to allow full startup time
+

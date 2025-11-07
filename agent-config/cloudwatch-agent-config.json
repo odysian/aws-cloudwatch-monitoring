@@ -5,18 +5,24 @@
   },
   "metrics": {
     "append_dimensions": {
-      "InstanceId": "${aws:InstanceId}"
+      "InstanceId": "${aws:InstanceId}",
+      "AutoScalingGroupName": "${aws:AutoScalingGroupName}"
     },
+    "aggregation_dimensions": [
+      ["AutoScalingGroupName"]
+    ],
     "metrics_collected": {
       "cpu": {
-        "measurement": ["usage_idle","iowait"],
-        "totalcpu": true
+        "measurement": ["cpu_usage_idle", "cpu_usage_iowait"],
+        "metrics_collection_interval": 60
       },
       "mem": {
-        "measurement": ["mem_used_percent"]
+        "measurement": ["mem_used_percent"],
+        "metrics_collection_interval": 60
       },
       "disk": {
         "measurement": ["used_percent"],
+        "metrics_collection_interval": 60,
         "resources": ["*"]
       },
       "net": {

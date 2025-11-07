@@ -47,21 +47,42 @@ echo "Time: " . date('Y-m-d H:i:s') . "\\n";
 ?>
 EOF
 
+# === Create a lightweight health check page ===
+cat > /var/www/html/healthcheck.php << 'EOF'
+<?php
+http_response_code(200);
+header("Content-Type: application/json");
+echo json_encode([
+    "status" => "ok",
+    "server" => gethostname(),
+    "time" => date("Y-m-d H:i:s")
+]);
+?>
+EOF
+
 # === Install CloudWatch Agent ===
 cd /tmp
 wget -q https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
 rpm -U ./amazon-cloudwatch-agent.rpm
 
-# === CloudWatch Agent config ===
+# === CloudWatch Agent config with ASG aggregation ===
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
 {
+  "agent": {
+    "metrics_collection_interval": 60,
+    "run_as_user": "root"
+  },
   "metrics": {
     "append_dimensions": {
-      "InstanceId": "${aws:InstanceId}"
+      "InstanceId": "${aws:InstanceId}",
+      "AutoScalingGroupName": "${aws:AutoScalingGroupName}"
     },
+    "aggregation_dimensions": [
+      ["AutoScalingGroupName"]
+    ],
     "metrics_collected": {
       "cpu": {
-        "measurement": ["cpu_usage_idle", "cpu_usage_iowait"],
+        "measurement": ["cpu_usage_idle","cpu_usage_iowait"],
         "metrics_collection_interval": 60
       },
       "mem": {
@@ -71,6 +92,10 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
       "disk": {
         "measurement": ["used_percent"],
         "metrics_collection_interval": 60,
+        "resources": ["*"]
+      },
+      "net": {
+        "measurement": ["bytes_sent","bytes_recv"],
         "resources": ["*"]
       }
     }
@@ -99,5 +124,10 @@ EOF
 # === Start CloudWatch Agent ===
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 \
   -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
+# === Set permissions and restart Apache ===
+chown apache:apache /var/www/html/*.php
+chmod 644 /var/www/html/*.php
+systemctl restart httpd
 
 echo "$(date): User data script completed successfully." | tee -a /var/log/user-data.log
