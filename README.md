@@ -1,8 +1,7 @@
 # aws-cloudwatch-monitoring
 CloudWatch monitoring solution for a 3-tier web application
 
-## VPC Setup
-**Configuration**: 
+**VPC Config**
 - VPC CIDR: 10.0.0.0/16
 - Availability Zones: 2 (us-east-1a, us-east-1b)
 - Public subnets: 10.0.0.0/20, 10.0.16.0/20
@@ -16,21 +15,23 @@ CloudWatch monitoring solution for a 3-tier web application
 ![Resource Map](screenshots/vpc-resource-map.png)
 - **Design Choice:** Used public subnets for all resources initially to avoid NAT Gateway costs. In production, EC2 and RDS would go in the private subnets with NAT for internet access. The current setup is secure enough for a monitoring project since RDS won't be public and EC2 security groups will be restrictive.
 
-## RDS Configuration
+**RDS Config**
 - MySQL 8.0.42 
 - db.t3.micro
 - 20GB gp2
 - Single AZ deployment
-- Security Group only allows access from EC2 security group
+- Security Group: webapp-rds-sg
+    - Inbound:  MYSQL/Aurora:3306(webapp-ec2-sg)
 
-## EC2 Launch Template Configuration
-- Amazon Linux 2023 640bit
-- t3.micro
-- Security group: allowing SSH from my IP, and HTTP from anywhere (will change to ALB security group later)
-    - Inbound: HTTP(Anywhere), SSH(My IP)
-    - Outbound: All traffic
-- Network interface that auto-assigns IPv4 address
-- EBS 8GB gp3 storage (encrypted)
+**EC2 Launch Template Config**
+- AMI: Amazon Linux 2023 640bit
+- Instance type: t3.micro
+- Storage: EBS 8GB gp3 storage (encrypted)
+- Security group: webapp-ec2-sg
+    - Inbound: 
+        - HTTP: webapp-alb-sg
+        - SSH: My IP    
+- Network interface auto-assigns IPv4 address
 - IAM role with attached permissions for CloudWatch agent and Systems Manager:
     - CloudWatchAgentServerPolicy
     - AmazonSSMManagedInstanceCore
@@ -43,47 +44,55 @@ CloudWatch monitoring solution for a 3-tier web application
     - Environment: dev
     - Project: cloudwatch-monitoring
 
-## CloudWatch Monitoring Setup
+**Application Load Balancer Config**
+- Name: webapp-alb
+- Internet facing IPv4
+- Subnets: 
+    - us-east-1a: public-subnet1 (10.0.0.0/20)
+    - us-east-1b: public-subnet2 (10.0.16.0/20)
+- Security Group: webapp-alb-sg
+    - Inbound: HTTP:80(Anywhere)
+    - Outbound: All traffic
+- Listener: HTTP:80 forwarding to webapp-tg
+- DNS name: webapp-alb-1270271488.us-east-1.elb.amazonaws.com
 
-### Dashboard Configuration
+**Target Group Config**
+- Name: webapp-tg
+- Protocol: HTTP(80) | Version: HTTP1
+- Health check path: /index.php
+- Healthy/Unhealthy Threshold: 2 checks
+- Targets: Ec2 instances managed by ASG
 
-**EC2 Metrics:**
-- CPU Usage (Idle) - tracking CPU availability
-- Memory Usage - percentage of RAM utilizied
-- Root Disk Usage - filesystem capacity monitoring
+**Auto Scaling Group Config**
+- Name: webapp-asg
+- Launch Template: webapp-lt (latest version)
+- Subnets: Both public subnets
+- Desidred: 2, Min: 2, Max: 4
+- Health check type: ELB (not just EC2)
+- Health check grace period: 300 seconds
 
-**RDS Metrics:**
-- CPU Utilization - database processing load
-- Free storage space - available disk capacity
-- Database connections - active connection count
+**Security Architecture:**
+- EC2 instances only allow HTTP traffic from ALB security group
+- Instances no longer have direct internet access via their security group
+- All traffic routes through ALB for load distribution
 
-![CloudWatch Dashboard](screenshots/cloudwatch-dashboard.png)
+![Application Load Balancer Resource Map](screenshots/alb-resource-map.png)
 
-### Alarm Configuration and Testing
+**Testing**
 
-**Test Alarm Created:**
-- Metric: Memory Usage (mem_used_percent)
-- Threshold >= 50% for 1 datapoint within 1 minute
-- Action: SNS topic (webapp-alerts) -> Email notification
-- State: Configured and verified
-
-**Testing Process:**
 ```bash
-# Generated memory usage with stress-ng
-stress-ng --vm 1 --vm-bytes 400M --timeout 120s
+# Verify load balancing
+for i in {1..10}; do curl http://webapp-alb-xxx.elb.amazonaws.com; done
+
+# Output shows requests distributed across instances
+Status: OK
+Server: ip-10-0-31-184.ec2.internal
+Database: Connected
+Time: 2025-11-07 02:21:50
+Status: OK
+Server: ip-10-0-31-184.ec2.internal
+Database: Connected
+Time: 2025-11-07 02:21:50
 ```
 
-**Results:**
-- Memory usage spiked to 68%
-- Alarm triggered successfully 
-- SNS Email notification received within 1-2 minutes
-- Alarm state transitioned: OK -> In alarm -> OK
 
-![Alarm Triggered](screenshots/alarm-triggered1.png)
-![Alarm History](screenshots/alarm-history.png)
-![Email Alert](screenshots/email-alert.png)
-
-**Lessons Learned:**
-- Cloudwatch agent metrics have ~1 minute collection interval
-- Make sure dashboard widget collection period is set to 1min
-- Email delivery is reliable and was able to have the notification pushed from gmail to my phone

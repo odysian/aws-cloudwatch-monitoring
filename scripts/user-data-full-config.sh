@@ -1,29 +1,29 @@
 #!/bin/bash
-# Update system
+# === System update ===
 yum update -y
 
-# Install Apache and PHP
-yum install -y httpd php php-mysqli
+# === Install required packages ===
+yum install -y httpd php php-mysqli mariadb105 wget nmap-ncat
 
-# Start Apache
+# === Start and enable Apache ===
 systemctl start httpd
 systemctl enable httpd
 
-# RDS connection info
+# === RDS connection info ===
 RDS_ENDPOINT="database-cloudwatch-monitoring.c0fekuwkkx5w.us-east-1.rds.amazonaws.com"
 DB_USER="admin"
 DB_PASS="odysbase69"
 DB_NAME="webapp"
 
-# Wait for RDS to be reachable
-echo "Waiting for RDS to be available..."
-until mysql -h $RDS_ENDPOINT -u $DB_USER -p$DB_PASS -e "USE $DB_NAME;" 2>/dev/null; do
-    echo "RDS not ready yet, sleeping 10s..."
+# === Wait for RDS to be reachable ===
+echo "Waiting for RDS to be available..." | tee -a /var/log/user-data.log
+until mysql -h "$RDS_ENDPOINT" -u "$DB_USER" -p"$DB_PASS" -e "USE $DB_NAME;" 2>/dev/null; do
+    echo "$(date): RDS not ready yet, sleeping 10s..." | tee -a /var/log/user-data.log
     sleep 10
 done
-echo "RDS is reachable!"
+echo "$(date): RDS is reachable!" | tee -a /var/log/user-data.log
 
-# Create simple status page with DB connection
+# === Create a simple status page ===
 cat > /var/www/html/index.php << EOF
 <?php
 \$host = "$RDS_ENDPOINT";
@@ -38,21 +38,21 @@ if (\$conn->connect_error) {
     die("Database connection failed: " . \$conn->connect_error);
 }
 
-// Simple status endpoint
-echo "Status: OK\n";
-echo "Server: " . gethostname() . "\n";
-echo "Database: Connected\n";
-echo "Time: " . date('Y-m-d H:i:s') . "\n";
+echo "Status: OK\\n";
+echo "Server: " . gethostname() . "\\n";
+echo "Database: Connected\\n";
+echo "Time: " . date('Y-m-d H:i:s') . "\\n";
 
 \$conn->close();
 ?>
 EOF
 
-# Install CloudWatch agent
-wget https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
+# === Install CloudWatch Agent ===
+cd /tmp
+wget -q https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm
 rpm -U ./amazon-cloudwatch-agent.rpm
 
-# Create CloudWatch agent config
+# === CloudWatch Agent config ===
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
 {
   "metrics": {
@@ -96,5 +96,8 @@ cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json << 'EOF'
 }
 EOF
 
-# Start CloudWatch agent
-/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+# === Start CloudWatch Agent ===
+/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a fetch-config -m ec2 \
+  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json -s
+
+echo "$(date): User data script completed successfully." | tee -a /var/log/user-data.log

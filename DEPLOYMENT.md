@@ -2,8 +2,6 @@
 ## Overview
 This document outlines the deploment validation steps for the aws-cloudwatch-monitoring project. Verifying EC2 setup, Apache/PHP config, RDS connectivity and CloudWatch Agent functionality.
 
----
-
 ## Pre-Deployment Checks
 
 **IAM Role:** 
@@ -25,8 +23,6 @@ This document outlines the deploment validation steps for the aws-cloudwatch-mon
     - Apache
     - PHP
     - CloudWatch Agent
-
----
 
 ## Testing and Verification
 
@@ -90,7 +86,3 @@ mysql -h database-cloudwatch-monitoring.c0fekuwkkx5w.us-east-1.rds.amazonaws.com
 - Verify RDS SG allows inbound 3306 from EC2 SG
 - Ensure RDS instance is in "available" state
 - Double check RDS endpoint, username, and password
-
-
-
-
