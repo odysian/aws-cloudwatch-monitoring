@@ -1,6 +1,6 @@
 # aws-cloudwatch-monitoring
 CloudWatch monitoring solution for a 3-tier web application
-![Architecture Diagram](screenshots/architecture-diagram.png)
+![Architecture Diagram](screenshots/architecture.drawio.png)
 --- 
 
 **VPC**
