@@ -42,6 +42,8 @@ CloudWatch monitoring solution for a 3-tier web application
     - PHP files created and permissions set
 - Tags: Name: webapp-instance, Environment: dev, Project: cloudwatch-monitoring
 
+--- 
+
 **Application Load Balancer**
 - Name: webapp-alb
 - Internet facing
@@ -49,6 +51,8 @@ CloudWatch monitoring solution for a 3-tier web application
 - Security Group: `webapp-alb-sg` (HTTP from anywhere)
 - Listener: HTTP 80 -> webapp-tg
 - DNS: webapp-alb-1270271488.us-east-1.elb.amazonaws.com
+
+--- 
 
 **Target Group**
 - Name: webapp-tg
@@ -58,6 +62,7 @@ CloudWatch monitoring solution for a 3-tier web application
 - Targets: EC2 instances in ASG
 - **Note:** Lightweight health check avoids DB-dependent failures.
 
+---
 
 **Auto Scaling Group**
 - Name: webapp-asg
@@ -67,12 +72,16 @@ CloudWatch monitoring solution for a 3-tier web application
 - Health check type: ELB
 - Grace period: 300s
 
+---
+
 **Security Architecture:**
 - EC2 only allows HTTP from ALB SG
 - No direct internet access
 - All traffic flows through ALB
 
 ![ALB Resource Map](screenshots/alb-resource-map.png)
+
+---
 
 **Testing**
 
@@ -86,6 +95,8 @@ Server: ip-10-0-31-184.ec2.internal
 Database: Connected
 Time: 2025-11-07 02:21:50
 ```
+
+---
 
 **Troubleshooting Notes:**
 - Initial instances failed health checks due to RDS connectivity check in user data
