@@ -4,7 +4,6 @@ It outlines how to confirm the cause through metrics, logs, and simple app-level
 
 ## Alert
 **Alarm Name:** ALB-High-Error-Rate
-
 Triggered when >= 10 HTTP 5XX errors occur within 5 minutes
 
 ## Investigation Steps

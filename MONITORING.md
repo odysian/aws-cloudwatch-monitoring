@@ -82,8 +82,8 @@ done
 - Dashboard visualizes ASG-level CPU and network metrics automatically
 - Memory/Disk metrics aggregated via the AutoScalingGroupName dimension in the CloudWatch Agent config
 - Alarms configured to treat missing data as not breaching to prevent false positives during scaling
+-  All alarms verified to send email notifications via the `webapp-alerts` SNS topic
 - `/healthcheck.php` isolates ELB checks from app logic to reduce false failures
-- SNS notifications verified for all alarm types
 
 ## Improvements to Explore
 - Add custom namespace for CloudWatch Agent metrics
