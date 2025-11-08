@@ -1,29 +1,96 @@
-# aws-cloudwatch-monitoring
-CloudWatch monitoring solution for a 3-tier web application
-![Architecture Diagram](screenshots/architecture.drawio.png)
+# AWS CloudWatch Monitoring System
+Hands-on AWS project demonstrating how to design, deploy, and monitor a 3-tier web application using EC2, RDS, ALB, and CloudWatch
+
+This setup simulates a production-style environment with automated alerts, health checks, and incident runbooks, built entirely within the AWS Free Tier.
+
+---
+
+## Architecture
+![Architecture Diagram](screenshots/ArchitectureV3.drawio.png)
+
+Components:
+- Multi-AZ VPC (2 public + 2 private subnets)
+- Application Load Balancer distributing HTTP traffic
+- Auto Scaling Group (2–4 EC2 web servers)
+- RDS MySQL database
+- CloudWatch for metrics, logs, and alarms
+- SNS topic for email notifications
+> **Design Note:** 
+> All resources deployed in public subnets to avoid NAT Gateway costs (for learning).
+In production, EC2 and RDS would be private with NAT access.
 --- 
+## Monitoring Highlights
 
-**VPC**
-- VPC CIDR: 10.0.0.0/16
-- Availability Zones: 2 (us-east-1a, us-east-1b)
-- Public subnets: 10.0.0.0/20, 10.0.16.0/20
-- Private subnets: 10.0.128.0/20, 10.0.144.0/20
-- NAT Gateways: 0 (keeping costs down for learning project)
-- 1 Internet Gateway attached to VPC
-- 1 Public Route Table with IGW route (0.0.0.0/0 -> igw)
-- 2 Private route tables (one per AZ)
-- Public subnets associated with public route table
-- Private subnets associated with respective private route table
+- **EC2 Metrics:** CPU, memory, disk via CloudWatch Agent
+- **ALB Metrics:** Request count, latency, 4XX/5XX errors, target health
+- **RDS Metrics:** CPU utilization, connections, free storage
+- **SNS Alerts:** Email notifications for all alarms
 
-![Resource Map](screenshots/vpc-resource-map.png)
-- **Design Choice:** Used public subnets for all resources initially to avoid NAT Gateway costs. In production, EC2 and RDS would go in the private subnets with NAT for internet access. The current setup is secure enough for a monitoring project since RDS won't be public and EC2 security groups will be restrictive.
+**Sample Alarms**
 
---- 
+| Alarm	| Type | Trigger |
+|-------|------|---------| 
+|RDS High CPU | Critical | CPU ≥ 90% (10 min) |
+|EC2 High Disk | High | Disk ≥ 85% |
+|Single Instance Unhealthy | High | ≥ 1 target failing |
+|All Instances Unhealthy | Critical	| ≥ 2 targets failing |
+|High 5XX Error Rate | High | ≥ 10 errors in 5 min |
 
-**RDS**
-- MySQL 8.0.42, db.t3.micro, 20GB gp2, Single AZ
-- Security Group: webapp-rds-sg
-    - Inbound:  MYSQL/Aurora:3306(webapp-ec2-sg)
+## Key Learnings
+
+- Debugging user-data scripts and RDS connectivity
+- Aggregating instance metrics at the ASG level
+- Building CloudWatch dashboards and SNS alerts
+- Testing alarm conditions and interpreting CloudWatch logs
+- Understanding how ALB health checks affect instance replacement
+
+## Next Steps
+
+- Add Route 53 for custom DNS
+- Move compute/database to private subnets
+- Automate setup with Terraform
+- Add Lambda auto-remediation for failed health checks
+
+## Repo Structure
+```
+aws-cloudwatch-monitoring/
+├── README.md
+├── DEPLOYMENT.md
+├── MONITORING.md
+├── runbooks/
+├── scripts/
+└── screenshots/
+```
+
+## Key Configuration Details
+
+### EC2
+
+- AMI: Amazon Linux 2023 (x86_64)
+- Instance type: t3.micro
+- User Data installs Apache, PHP, and CloudWatch Agent
+- Waits for RDS connectivity using `mariadb105`
+- Publishes ASG-level metrics via `AutoScalingGroupName`
+- Tags: `Name: webapp-asg-instance`,`Environment: dev`, `Project: cloudwatch-monitoring`
+
+### RDS
+- MySQL 8.0.42
+- db.t3.micro, 20GB gp2
+- Single-AZ deployment
+- Security group allows port 3306 only from EC2 SG
+
+### ALB & Target Group
+
+- Internet-facing ALB on port 80
+- Health check path: `/healthcheck.php` (lightweight, no DB dependency)
+- Listener forwards traffic to `webapp-tg`
+- 2 healthy targets managed by ASG
+
+### Auto Scaling Group
+
+- Desired: 2  Min: 2  Max: 4
+- Health check type: ELB
+- Grace period: 300 seconds
 
 --- 
 

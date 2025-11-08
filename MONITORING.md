@@ -1,24 +1,24 @@
 # CloudWatch Monitoring Setup
 
-This document details the **CloudWatch monitoring and alerting setup** for a production-ready three-tier web application.  
-It covers dashboard config, custom metrics aggregation via the CloudWatch Agent, and SNS-integrated alarms that validate both system health and automated recovery workflows.
+This document outlines the **CloudWatch monitoring and alerting configuration** for the AWS 3-tier web application.  
+It explains how dashboards, custom metrics, and alarms were built to track infrastructure health and automatically notify through SNS.
 
 ## Dashboard Configuration
 
 **EC2 Metrics (via CloudWatch Agent + ASG)**
-- CPU Usage (Idle) - ASG aggregate
-- Memory Usage - CloudWatch Agent aggregate
-- Disk Usage - CloudWatch Agent aggregate
-- Desired vs Running instances - ASG metric
+- CPU Usage (Idle) – aggregated by Auto Scaling Group
+- Memory Usage – aggregated via CloudWatch Agent
+- Disk Usage – aggregated via CloudWatch Agent
+- Desired vs Running Instances – ASG metric
 
 **ALB Metrics**
 - Request Count
 - Response Time
 - Healthy / Unhealthy Targets
-- Error counts:
-    - 5XX (Application errors)
-    - 4XX (Client errors)
-- Health check path: /healthcheck.php
+- Error Rates:
+    - 5XX - Application errors
+    - 4XX - Client errors
+- Health Check Path: `/healthcheck.php`
 
 **RDS Metrics:**
 - CPU Utilization
@@ -33,32 +33,33 @@ It covers dashboard config, custom metrics aggregation via the CloudWatch Agent,
 
 | Alarm Name | Metric | Condition | Period | Severity | SNS Action | Description |
 |-------------|---------|------------|----------|------------|--------------|--------------|
-| **PROD-P1-RDS-High-CPU** | `CPUUtilization` | ≥ 90% for 2 datapoints | 10 min | P1 – Critical | `webapp-alerts` | Indicates RDS CPU saturation |
-| **PROD-P1-RDS-Low-Storage** | `FreeStorageSpace` | < 2 GB for 2 datapoints | 15 min | P1 – Critical | `webapp-alerts` | Database storage running low |
-| **PROD-P2-EC2-High-Disk-Usage** | `disk_used_percent` | ≥ 85% for 1 datapoint | 1 min | P2 – High | `webapp-alerts` | Disk utilization approaching full |
-| **PROD-P2-Single-Instance-Unhealthy** | `UnHealthyHostCount` | ≥ 1 for 3 datapoints | 3 min | P2 – High | `webapp-alerts` | One target in ALB target group unhealthy |
-| **PROD-P1-All-Instances-Unhealthy** | `UnHealthyHostCount` | ≥ 2 for 2 datapoints | 2 min | P1 – Critical | `webapp-alerts` | All instances unhealthy – application outage |
-| **PROD-P2-High-Error-Rate** | `HTTPCode_Target_5XX_Count` | ≥ 10 for 1 datapoint | 5 min | P2 – High | `webapp-alerts` | Elevated server-side error rate detected |
+| **RDS-High-CPU** | `CPUUtilization` | ≥ 90% for 2 datapoints | 10 min | Critical | `webapp-alerts` | Indicates RDS CPU saturation |
+| **RDS-Low-Storage** | `FreeStorageSpace` | < 2 GB for 2 datapoints | 15 min | Critical | `webapp-alerts` | Database storage running low |
+| **EC2-High-Disk-Usage** | `disk_used_percent` | ≥ 85% for 1 datapoint | 1 min | High | `webapp-alerts` | Disk utilization approaching full |
+| **ASG-Single-Instance-Unhealthy** | `UnHealthyHostCount` | ≥ 1 for 3 datapoints | 3 min | High | `webapp-alerts` | One ALB target unhealthy |
+| **ASG-All-Instances-Unhealthy** | `UnHealthyHostCount` | ≥ 2 for 2 datapoints | 2 min | Critical | `webapp-alerts` | All instances unhealthy (app outage) |
+| **ALB-High-Error-Rate** | `HTTPCode_Target_5XX_Count` | ≥ 10 for 1 datapoint | 5 min | High | `webapp-alerts` | Elevated server-side error rate |
 
 ## Alarm Validation
 
 ### 1. Target Group Health Alarms
 
-**Objective:** Verify automatic alerting when application instances become unhealthy.
+**Goal:** Confirm alert triggers when instances become unhealthy.
 
 **Test Steps:**
 ```bash
 # Stop Apache service on one instance
 sudo systemctl stop httpd
 ```
-- Target group reported 1 unhealthy host → PROD-P2-Single-Instance-Unhealthy alarm triggered.
-- ASG automatically replaced instance → Target group returned to healthy → Alarm returned to OK.
-- Restarted Apache service to confirm recovery.
-**Result**: SNS alert received, system auto-recovered.
+- Target group showed 1 unhealthy host → **ASG-Single-Instance-Unhealthy** alarm triggered.
+- Auto Scaling Group launched replacement instance
+- Alarm reset to OK after recovery
+
+**Result:** SNS notification received, instance replaced successfully.
 
 ### 2. Application Error Rate Alarm
 
-**Objective:** Validate ALB 5XX detection and alarm accuracy.
+**Goal:** Validate ALB 5XX error detection.
 
 **Test Steps:**
 ```bash
@@ -70,15 +71,22 @@ for i in {1..30}; do
   curl -s -o /dev/null -w "%{http_code}\n" http://webapp-alb-1270271488.us-east-1.elb.amazonaws.com/test500.php
 done
 ```
+- Multiple 500 responses confirmed in output.
+- After ~5 minutes, **ALB-High-Error-Rate** alarm entered *In Alarm* state.
+- SNS email alert received
+**Result:** Alarm triggered as expected and cleared after file removal.
 
-
-- Multiple 500 codes observed in output.
-- Within ~5 minutes, PROD-P2-High-Error-Rate alarm transitioned to In Alarm.
-- SNS notification confirmed trigger.
-- **Result:** Alarm triggered and recovered correctly when file restored.
+![alt text](screenshots/alarm-tests.png)
 
 ## Notes
-- Dashboard visualizes ASG-level CPU and network performance.
-- Memory/Disk metrics are reported through CloudWatch Agent and aggregated by the `AutoScalingGroupName` dimension.
-- Alarms configured to treat missing data as not breaching to prevent false alarms during scaling or restarts.
-- Health check path `/healthcheck.php` isolates status checks from user-facing application logic.
+- Dashboard visualizes ASG-level CPU and network metrics automatically
+- Memory/Disk metrics aggregated via the AutoScalingGroupName dimension in the CloudWatch Agent config
+- Alarms configured to treat missing data as not breaching to prevent false positives during scaling
+- `/healthcheck.php` isolates ELB checks from app logic to reduce false failures
+- SNS notifications verified for all alarm types
+
+## Improvements to Explore
+- Add custom namespace for CloudWatch Agent metrics
+- Configure composite alarms for grouped incident alerts
+- Integrate alarms with Lambda for auto-remediation
+- Extend runbooks for automated scaling event response
