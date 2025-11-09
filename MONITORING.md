@@ -7,6 +7,7 @@ It explains how dashboards, custom metrics, and alarms were built to track infra
 
 **EC2 Metrics (via CloudWatch Agent + ASG)**
 - CPU Usage (Idle) – aggregated by Auto Scaling Group
+- Network Traffic – aggregated by Auto Scaling Group
 - Memory Usage – aggregated via CloudWatch Agent
 - Disk Usage – aggregated via CloudWatch Agent
 - Desired vs Running Instances – ASG metric

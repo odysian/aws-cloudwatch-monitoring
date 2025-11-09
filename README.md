@@ -5,7 +5,7 @@ This setup simulates a production-style environment with automated alerts, healt
 >To explore: Start with [README.md](README.md) → then [DEPLOYMENT.md](DEPLOYMENT.md) → then [MONITORING.md](MONITORING.md) → finally, view [runbooks/](runbooks) for troubleshooting examples.
 
 ## Architecture
-![Architecture Diagram](screenshots/ArchitectureV3.drawio.png)
+![Architecture Diagram](screenshots/architecture-diagram.png)
 
 | Layer | Technology |
 |-------|-------- |
@@ -38,6 +38,22 @@ For complete setup and configuration details, see [DEPLOYMENT.md](DEPLOYMENT.md)
 |Single Instance Unhealthy | High | ≥ 1 target failing |
 |All Instances Unhealthy | Critical	| ≥ 2 targets failing |
 |High 5XX Error Rate | High | ≥ 10 errors in 5 min |
+
+## Verification
+
+**Load Balancer Distributing Traffic:**
+
+![application terminal](screenshots/app-terminalpng.png)
+
+**Healthy Targets:**
+
+![target group](screenshots/target-group.png)
+
+**Auto Scaling Group:**
+
+![auto scaling group](screenshots/asg.png)
+
+All components operational and monitored via CloudWatch dashboard (see [MONITORING.md](MONITORING.md))
 
 ## Key Learnings
 
