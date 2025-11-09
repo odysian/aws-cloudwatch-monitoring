@@ -30,6 +30,3 @@ if __name__ == '__main__':
 EOF
 
 nohup python3 /home/ec2-user/app.py &
-
-
-
